@@ -2,6 +2,7 @@
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { usePage } from '@inertiajs/vue3';
 import { Toaster } from '@/components/ui/sonner';
+import OfflineIndicator from '@/components/OfflineIndicator.vue';
 import 'vue-sonner/style.css'; // Required for vue-sonner v2
 
 interface Props {
@@ -11,6 +12,13 @@ interface Props {
 defineProps<Props>();
 
 const isOpen = usePage().props.sidebarOpen;
+
+// Handle sync requests from the offline indicator
+const handleSyncRequest = () => {
+    console.log('🔄 Manual sync requested by user')
+    // We'll implement the actual sync logic in the next step
+    window.dispatchEvent(new CustomEvent('app:sync-requested'))
+}
 </script>
 
 <template>
@@ -23,4 +31,7 @@ const isOpen = usePage().props.sidebarOpen;
     
     <!-- Global Toast Container -->
     <Toaster class="pointer-events-auto" position="top-right" />
+    
+    <!-- Offline Status Indicator -->
+    <OfflineIndicator @sync-requested="handleSyncRequest" />
 </template>

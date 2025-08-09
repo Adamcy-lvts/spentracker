@@ -16,6 +16,8 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { today, getLocalTimeZone } from '@internationalized/date';
 import ExpenseDataTable from '@/components/expenses/ExpenseDataTable.vue';
 import { columns } from '@/components/expenses/columns';
+import { useOfflineStorage } from '@/composables/useOfflineStorage';
+import { useNetworkStatus } from '@/composables/useNetworkStatus';
 
 defineProps<{
   expenses: Array<{
@@ -58,8 +60,31 @@ const editDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const currentExpense = ref<any>(null)
 
+// Vue Learning Point #27: Integrating multiple composables
+const { isOnline } = useNetworkStatus()
+const { 
+  initDB, 
+  initNetworkSync,
+  createExpenseOffline, 
+  isInitialized,
+  expenses: offlineExpenses,
+  hasUnsyncedData,
+  syncWithServer
+} = useOfflineStorage()
+
 // Event listeners for data table actions
-onMounted(() => {
+onMounted(async () => {
+  // Vue Learning Point #28: Initialize composables on component mount
+  try {
+    console.log('🚀 Initializing offline storage...')
+    await initDB()
+    initNetworkSync()
+    console.log('✅ Offline storage ready!')
+  } catch (error) {
+    console.error('Failed to initialize offline storage:', error)
+    toast.error('Failed to initialize offline storage')
+  }
+
   // Listen for edit events from the data table
   document.addEventListener('editExpense', (event: any) => {
     openEditDialog(event.detail)
@@ -77,19 +102,49 @@ onUnmounted(() => {
   document.removeEventListener('deleteExpense', () => {})
 })
 
-// Submit function
-const submit = () => {
-    form.post(route('expense.store'), {
-        onSuccess: () => {
+// Vue Learning Point #29: Offline-first form submission
+const submit = async () => {
+    if (!isInitialized.value) {
+        toast.error('App is still initializing, please wait...')
+        return
+    }
+
+    try {
+        if (isOnline.value) {
+            // Online: Use traditional Laravel form submission
+            form.post(route('expense.store'), {
+                onSuccess: () => {
+                    form.reset();
+                    mainDisplayAmount.value = '';
+                    selectedDate.value = today(getLocalTimeZone());
+                    toast.success('Expense added successfully! 🎉');
+                },
+                onError: () => {
+                    toast.error('Failed to add expense. Please check your inputs.');
+                },
+            });
+        } else {
+            // Offline: Save to local storage
+            const user = usePage().props.auth?.user as any
+            
+            await createExpenseOffline({
+                description: form.data.description,
+                amount: form.data.amount,
+                date: form.data.date,
+                user_id: user?.id || 1 // Fallback user ID
+            })
+
+            // Reset form
             form.reset();
-            mainDisplayAmount.value = ''; // Clear the display amount too
-            selectedDate.value = today(getLocalTimeZone()); // Reset date picker to today
-            toast.success('Expense added successfully! 🎉');
-        },
-        onError: () => {
-            toast.error('Failed to add expense. Please check your inputs.');
-        },
-    });
+            mainDisplayAmount.value = '';
+            selectedDate.value = today(getLocalTimeZone());
+            
+            toast.success('Expense saved offline! 📴 Will sync when online.');
+        }
+    } catch (error) {
+        console.error('Failed to create expense:', error)
+        toast.error('Failed to save expense. Please try again.')
+    }
 };
 
 
