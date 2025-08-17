@@ -15,6 +15,7 @@ class Expense extends Model
         'amount',
         'date',
         'user_id',
+        'category_id',
     ];
 
     /**
@@ -31,5 +32,13 @@ class Expense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the category of the expense.
+     */
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 }

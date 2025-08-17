@@ -7,6 +7,7 @@ interface OfflineExpense {
   description: string
   amount: string
   date: string
+  category_id?: number | null
   user_id: number
   created_at: string
   updated_at: string
@@ -107,6 +108,9 @@ export function useOfflineStorage() {
       await loadExpenses()
       await loadPendingSync()
       
+      // Clean up any invalid sync actions
+      await cleanupInvalidSyncActions()
+      
       console.log('✅ IndexedDB initialized successfully!')
       console.log(`📊 Loaded ${expenseCount.value} expenses, ${pendingSyncCount.value} pending sync`)
       
@@ -122,10 +126,27 @@ export function useOfflineStorage() {
     
     try {
       const allExpenses = await db.value.getAll('expenses')
-      expenses.value = allExpenses.sort((a, b) => 
+      
+      // Filter out expenses with invalid data (missing description, amount, or date)
+      const validExpenses = allExpenses.filter(expense => 
+        expense.description && 
+        expense.amount !== undefined && 
+        expense.date && 
+        expense.date !== 'undefined'
+      )
+      
+      // Remove invalid expenses from IndexedDB
+      for (const expense of allExpenses) {
+        if (!validExpenses.includes(expense)) {
+          console.log('🗑️ Removing invalid expense:', expense)
+          await db.value.delete('expenses', expense.localId)
+        }
+      }
+      
+      expenses.value = validExpenses.sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       )
-      return allExpenses
+      return validExpenses
     } catch (error) {
       console.error('Failed to load expenses:', error)
       return []
@@ -138,8 +159,25 @@ export function useOfflineStorage() {
     
     try {
       const pending = await db.value.getAll('pendingSync')
-      pendingSync.value = pending.sort((a, b) => a.timestamp - b.timestamp)
-      return pending
+      
+      // Filter out sync actions with invalid expense data
+      const validPending = pending.filter(action => 
+        action.expenseData?.description && 
+        action.expenseData?.amount !== undefined && 
+        action.expenseData?.date && 
+        action.expenseData?.date !== 'undefined'
+      )
+      
+      // Remove invalid pending sync actions from IndexedDB
+      for (const action of pending) {
+        if (!validPending.includes(action)) {
+          console.log('🗑️ Removing invalid pending sync:', action)
+          await db.value.delete('pendingSync', action.id)
+        }
+      }
+      
+      pendingSync.value = validPending.sort((a, b) => a.timestamp - b.timestamp)
+      return validPending
     } catch (error) {
       console.error('Failed to load pending sync:', error)
       return []
@@ -158,6 +196,7 @@ export function useOfflineStorage() {
     description: string
     amount: string
     date: string
+    category_id?: number | null
     user_id: number
   }) => {
     if (!db.value) throw new Error('Database not initialized')
@@ -173,6 +212,7 @@ export function useOfflineStorage() {
         description: expenseData.description,
         amount: expenseData.amount,
         date: expenseData.date,
+        category_id: expenseData.category_id,
         user_id: expenseData.user_id,
         created_at: now,
         updated_at: now,
@@ -209,16 +249,17 @@ export function useOfflineStorage() {
   }
 
   // UPDATE: Modify existing expense offline
-  const updateExpenseOffline = async (localId: string, updateData: {
+  const updateExpenseOffline = async (id: string | number, updateData: {
     description?: string
     amount?: string
     date?: string
+    category_id?: number | null
   }) => {
     if (!db.value) throw new Error('Database not initialized')
     
     try {
-      // Find existing expense
-      const existingExpense = await db.value.get('expenses', localId)
+      // Find existing expense by ID (either localId or server id)
+      const existingExpense = await findExpenseById(id)
       if (!existingExpense) throw new Error('Expense not found')
       
       // Create updated expense
@@ -230,7 +271,7 @@ export function useOfflineStorage() {
         lastModified: Date.now()
       }
       
-      // Save to IndexedDB
+      // Save to IndexedDB using localId
       await db.value.put('expenses', updatedExpense)
       
       // Add to pending sync queue
@@ -245,13 +286,13 @@ export function useOfflineStorage() {
       await db.value.put('pendingSync', syncAction)
       
       // Vue Learning Point #9: Array updates trigger reactivity
-      const index = expenses.value.findIndex(e => e.localId === localId)
+      const index = expenses.value.findIndex(e => e.localId === existingExpense.localId)
       if (index !== -1) {
         expenses.value[index] = updatedExpense // Vue detects this change!
       }
       pendingSync.value.push(syncAction)
       
-      console.log('✏️ Updated offline expense:', localId)
+      console.log('✏️ Updated offline expense:', existingExpense.localId)
       return updatedExpense
       
     } catch (error) {
@@ -260,19 +301,39 @@ export function useOfflineStorage() {
     }
   }
 
+  // Helper function to find expense by ID (either localId or server id)
+  const findExpenseById = async (id: string | number): Promise<OfflineExpense | null> => {
+    if (!db.value) return null
+    
+    try {
+      // First try to find by localId
+      if (typeof id === 'string') {
+        const expense = await db.value.get('expenses', id)
+        if (expense) return expense
+      }
+      
+      // If not found, search all expenses for server ID match
+      const allExpenses = await db.value.getAll('expenses')
+      return allExpenses.find(expense => expense.id === id.toString()) || null
+    } catch (error) {
+      console.error('Failed to find expense by ID:', error)
+      return null
+    }
+  }
+
   // DELETE: Remove expense offline
-  const deleteExpenseOffline = async (localId: string) => {
+  const deleteExpenseOffline = async (id: string | number) => {
     if (!db.value) throw new Error('Database not initialized')
     
     try {
-      // Get expense before deleting
-      const expense = await db.value.get('expenses', localId)
+      // Find expense by ID (either localId or server id)
+      const expense = await findExpenseById(id)
       if (!expense) throw new Error('Expense not found')
       
-      // Remove from IndexedDB
-      await db.value.delete('expenses', localId)
+      // Remove from IndexedDB using localId
+      await db.value.delete('expenses', expense.localId)
       
-      // Only add to sync queue if it was previously synced (has server ID)
+      // Add to sync queue if it was previously synced (has server ID)
       if (expense.id) {
         const syncAction: PendingSyncAction = {
           id: generateOfflineId(),
@@ -287,13 +348,77 @@ export function useOfflineStorage() {
       }
       
       // Vue Learning Point #10: Reactive array filtering
-      expenses.value = expenses.value.filter(e => e.localId !== localId)
+      expenses.value = expenses.value.filter(e => e.localId !== expense.localId)
       
-      console.log('🗑️ Deleted offline expense:', localId)
+      console.log('🗑️ Deleted offline expense:', expense.localId)
       return true
       
     } catch (error) {
       console.error('Failed to delete offline expense:', error)
+      throw error
+    }
+  }
+
+  // BULK DELETE: Remove multiple expenses offline
+  const bulkDeleteExpensesOffline = async (ids: (string | number)[]) => {
+    if (!db.value) throw new Error('Database not initialized')
+    
+    try {
+      const deletedExpenses: OfflineExpense[] = []
+      const errors: string[] = []
+      
+      for (const id of ids) {
+        try {
+          // Find expense by ID (either localId or server id)
+          const expense = await findExpenseById(id)
+          if (!expense) {
+            errors.push(`Expense with ID ${id} not found`)
+            continue
+          }
+          
+          // Remove from IndexedDB using localId
+          await db.value.delete('expenses', expense.localId)
+          
+          // Add to sync queue if it was previously synced (has server ID)
+          if (expense.id) {
+            const syncAction: PendingSyncAction = {
+              id: generateOfflineId(),
+              type: 'delete',
+              expenseData: expense,
+              timestamp: Date.now(),
+              attempts: 0
+            }
+            
+            await db.value.put('pendingSync', syncAction)
+            pendingSync.value.push(syncAction)
+          }
+          
+          deletedExpenses.push(expense)
+          
+        } catch (error) {
+          console.error(`Failed to delete expense ${id}:`, error)
+          errors.push(`Failed to delete expense ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      }
+      
+      // Update reactive array by filtering out deleted expenses
+      const deletedLocalIds = deletedExpenses.map(e => e.localId)
+      expenses.value = expenses.value.filter(e => !deletedLocalIds.includes(e.localId))
+      
+      console.log(`🗑️ Bulk deleted ${deletedExpenses.length} offline expenses`)
+      
+      if (errors.length > 0) {
+        console.warn('Some deletions failed:', errors)
+      }
+      
+      return {
+        deletedCount: deletedExpenses.length,
+        errors,
+        success: errors.length === 0
+      }
+      
+    } catch (error) {
+      console.error('Failed to bulk delete offline expenses:', error)
       throw error
     }
   }
@@ -312,6 +437,105 @@ export function useOfflineStorage() {
       console.log('🧹 Cleared all offline data')
     } catch (error) {
       console.error('Failed to clear offline data:', error)
+    }
+  }
+
+  // UTILITY: Clean up invalid pending sync actions
+  const cleanupInvalidSyncActions = async () => {
+    if (!db.value) return
+    
+    try {
+      const allPending = await db.value.getAll('pendingSync')
+      console.log(`🔍 Found ${allPending.length} pending sync actions to review:`)
+      
+      // Log all pending actions for debugging
+      allPending.forEach((action, index) => {
+        console.log(`📋 Sync Action ${index + 1}:`, {
+          id: action.id,
+          type: action.type,
+          expenseId: action.expenseData?.id,
+          localId: action.expenseData?.localId,
+          description: action.expenseData?.description,
+          amount: action.expenseData?.amount,
+          date: action.expenseData?.date,
+          attempts: action.attempts,
+          timestamp: new Date(action.timestamp).toISOString()
+        })
+      })
+      
+      let cleanedCount = 0
+      
+      for (const action of allPending) {
+        // Check if the expense data is valid
+        const expense = action.expenseData
+        let shouldDelete = false
+        let reason = ''
+        
+        if (!expense) {
+          shouldDelete = true
+          reason = 'No expense data'
+        } else if (!expense.description) {
+          shouldDelete = true
+          reason = 'Missing description'
+        } else if (expense.amount === undefined || expense.amount === null) {
+          shouldDelete = true
+          reason = 'Missing amount'
+        } else if (!expense.date || expense.date === 'undefined') {
+          shouldDelete = true
+          reason = 'Missing or invalid date'
+        } else if (action.type === 'delete' && !expense.id) {
+          shouldDelete = true
+          reason = 'Delete action for expense without server ID'
+        } else if (action.attempts && action.attempts > 5) {
+          shouldDelete = true
+          reason = 'Too many failed attempts'
+        } else if (action.type === 'delete' && expense.id) {
+          // Smart detection for stale delete actions
+          const actionAge = Date.now() - action.timestamp
+          const isOld = actionAge > (2 * 60 * 1000) // Older than 2 minutes
+          
+          // If it's a delete action that's old and has already failed sync attempts,
+          // it's likely stale (expense was deleted via bulk delete)
+          if (isOld && action.attempts > 0) {
+            shouldDelete = true
+            reason = 'Stale delete action - old with failed sync attempts'
+          }
+          // Also remove very old delete actions regardless of attempts
+          else if (actionAge > (10 * 60 * 1000)) { // Older than 10 minutes
+            shouldDelete = true
+            reason = 'Very old delete action - likely already processed'
+          }
+        }
+        
+        if (shouldDelete) {
+          console.log(`🗑️ Removing invalid sync action (${reason}):`, action)
+          await db.value.delete('pendingSync', action.id)
+          cleanedCount++
+        }
+      }
+      
+      if (cleanedCount > 0) {
+        console.log(`🧹 Cleaned up ${cleanedCount} invalid sync actions`)
+        await loadPendingSync() // Refresh the reactive array
+      } else {
+        console.log('✅ No invalid sync actions found')
+      }
+      
+    } catch (error) {
+      console.error('Failed to cleanup invalid sync actions:', error)
+    }
+  }
+
+  // UTILITY: Clear all pending sync actions (for debugging/reset)
+  const clearPendingSync = async () => {
+    if (!db.value) return
+    
+    try {
+      await db.value.clear('pendingSync')
+      pendingSync.value = []
+      console.log('🧹 Cleared all pending sync actions')
+    } catch (error) {
+      console.error('Failed to clear pending sync:', error)
     }
   }
 
@@ -414,56 +638,105 @@ export function useOfflineStorage() {
     }
   }
 
+  // Get fresh CSRF token from server
+  const getFreshCsrfToken = async (): Promise<string> => {
+    try {
+      const response = await fetch('/expense', {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/html',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include'
+      })
+      
+      const html = await response.text()
+      const match = html.match(/<meta name="csrf-token" content="([^"]+)"/)
+      if (match) {
+        // Update the meta tag with fresh token
+        const metaTag = document.querySelector('meta[name="csrf-token"]')
+        if (metaTag) {
+          metaTag.setAttribute('content', match[1])
+        }
+        return match[1]
+      }
+      throw new Error('CSRF token not found in response')
+    } catch (error) {
+      console.error('Failed to get fresh CSRF token:', error)
+      // Fallback to existing token
+      return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+    }
+  }
+
   // Sync individual operations with server
   const syncCreateExpense = async (expense: OfflineExpense): Promise<void> => {
+    // Debug the sync data
+    const syncData = {
+      description: expense.description,
+      amount: expense.amount,
+      date: expense.date
+    }
+    console.log('🔍 Syncing expense data:', syncData)
+    
+    // Get fresh CSRF token
+    const csrfToken = await getFreshCsrfToken()
+    console.log('🔍 CSRF token:', csrfToken ? 'Found' : 'Missing')
+    
     const response = await fetch('/expense', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        'X-CSRF-TOKEN': csrfToken
+        // Deliberately NOT sending X-Inertia header to get JSON response
       },
-      body: JSON.stringify({
-        description: expense.description,
-        amount: expense.amount,
-        date: expense.date
-      })
+      credentials: 'include', // Include all cookies
+      body: JSON.stringify(syncData)
     })
 
     if (!response.ok) {
+      const responseText = await response.text()
+      console.log('🚨 Sync failed - server response:', responseText.substring(0, 200))
       throw new Error(`Server responded with ${response.status}: ${response.statusText}`)
     }
 
-    const serverExpense = await response.json()
+    const responseText = await response.text()
+    let serverExpense
+    try {
+      serverExpense = JSON.parse(responseText)
+    } catch (parseError) {
+      console.log('🚨 Invalid JSON response:', responseText.substring(0, 200))
+      throw new Error('Server returned HTML instead of JSON - likely authentication issue')
+    }
     
     // Vue Learning Point #24: Updating local data with server response
-    // Update local expense with server ID and mark as synced
-    const updatedExpense: OfflineExpense = {
-      ...expense,
-      id: serverExpense.id.toString(),
-      syncStatus: 'synced',
-      lastModified: Date.now()
-    }
+    // Remove from offline storage since it's now on the server
+    await db.value!.delete('expenses', expense.localId)
 
-    await db.value!.put('expenses', updatedExpense)
-
-    // Update reactive array
+    // Remove from reactive array
     const index = expenses.value.findIndex(e => e.localId === expense.localId)
     if (index !== -1) {
-      expenses.value[index] = updatedExpense
+      expenses.value.splice(index, 1)
     }
+    
+    console.log(`✅ Moved expense "${expense.description}" from offline to server (ID: ${serverExpense.id})`)
   }
 
   const syncUpdateExpense = async (expense: OfflineExpense): Promise<void> => {
     if (!expense.id) throw new Error('Cannot update expense without server ID')
 
+    const csrfToken = await getFreshCsrfToken()
+
     const response = await fetch(`/expense/${expense.id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        'X-CSRF-TOKEN': csrfToken
       },
+      credentials: 'include',
       body: JSON.stringify({
         description: expense.description,
         amount: expense.amount,
@@ -475,27 +748,44 @@ export function useOfflineStorage() {
       throw new Error(`Server responded with ${response.status}: ${response.statusText}`)
     }
 
-    // Mark as synced
-    const syncedExpense = { ...expense, syncStatus: 'synced' as const }
-    await db.value!.put('expenses', syncedExpense)
+    // Remove from offline storage since it's now synced to server
+    await db.value!.delete('expenses', expense.localId)
 
-    // Update reactive array
+    // Remove from reactive array
     const index = expenses.value.findIndex(e => e.localId === expense.localId)
     if (index !== -1) {
-      expenses.value[index] = syncedExpense
+      expenses.value.splice(index, 1)
     }
+    
+    console.log(`✅ Updated expense "${expense.description}" on server (ID: ${expense.id})`)
   }
 
   const syncDeleteExpense = async (expense: OfflineExpense): Promise<void> => {
     if (!expense.id) throw new Error('Cannot delete expense without server ID')
 
+    const csrfToken = await getFreshCsrfToken()
+
     const response = await fetch(`/expense/${expense.id}`, {
       method: 'DELETE',
       headers: {
+        'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-      }
+        'X-CSRF-TOKEN': csrfToken
+      },
+      credentials: 'include'
     })
+
+    // Handle 404 as success - expense was already deleted
+    if (response.status === 404) {
+      console.log(`✅ Expense ${expense.id} was already deleted (404) - considering sync successful`)
+      // Remove from local storage if it still exists
+      try {
+        await db.value!.delete('expenses', expense.localId)
+      } catch (error) {
+        console.log('Expense already removed from local storage')
+      }
+      return
+    }
 
     if (!response.ok) {
       throw new Error(`Server responded with ${response.status}: ${response.statusText}`)
@@ -552,7 +842,10 @@ export function useOfflineStorage() {
     createExpenseOffline,
     updateExpenseOffline,
     deleteExpenseOffline,
+    bulkDeleteExpensesOffline,
     clearOfflineData,
+    cleanupInvalidSyncActions,
+    clearPendingSync,
     
     // Sync functions
     syncWithServer,
@@ -560,7 +853,8 @@ export function useOfflineStorage() {
     
     // Internal functions (exposed for testing/debugging)
     processSyncAction,
-    handleNetworkChange
+    handleNetworkChange,
+    findExpenseById
   }
 }
 

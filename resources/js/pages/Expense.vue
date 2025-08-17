@@ -6,28 +6,45 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import InputError from '@/components/InputError.vue';
 import { LoaderCircle, Plus } from 'lucide-vue-next';
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import EditExpenseDialog from '@/components/EditExpenseDialog.vue';
 import DeleteExpenseDialog from '@/components/DeleteExpenseDialog.vue';
+import BulkDeleteExpenseDialog from '@/components/BulkDeleteExpenseDialog.vue';
 import { DatePicker } from '@/components/ui/date-picker';
 import { today, getLocalTimeZone } from '@internationalized/date';
 import ExpenseDataTable from '@/components/expenses/ExpenseDataTable.vue';
 import { columns } from '@/components/expenses/columns';
 import { useOfflineStorage } from '@/composables/useOfflineStorage';
 import { useNetworkStatus } from '@/composables/useNetworkStatus';
+// Removed unused imports - using global instance instead
 
-defineProps<{
+const props = defineProps<{
   expenses: Array<{
     id: number;
     description: string;
     amount: string; // Laravel returns decimals as strings
     date: string;
     user_id: number;
+    category_id: number | null;
+    category?: {
+      id: number;
+      name: string;
+      icon: string;
+      color: string;
+    };
     created_at: string;
     updated_at: string;
+  }>;
+  categories: Array<{
+    id: number;
+    name: string;
+    icon: string;
+    color: string;
+    description: string;
   }>;
 }>();
 
@@ -43,10 +60,14 @@ const form = useForm({
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0], // Today's date
+    category_id: null,
 });
 
 // Date picker state
 const selectedDate = ref(today(getLocalTimeZone()))
+
+// Initialize form date with today's date
+form.date = selectedDate.value.toString()
 
 // Watch for date changes and update form
 watch(selectedDate, (newDate) => {
@@ -58,31 +79,85 @@ watch(selectedDate, (newDate) => {
 // Dialog state
 const editDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
+const bulkDeleteDialogOpen = ref(false)
 const currentExpense = ref<any>(null)
+const selectedExpensesForBulkDelete = ref<any[]>([])
 
-// Vue Learning Point #27: Integrating multiple composables
+// Vue Learning Point #51: Integrating Multiple Composables for Different Features
 const { isOnline } = useNetworkStatus()
 const { 
   initDB, 
   initNetworkSync,
   createExpenseOffline, 
+  deleteExpenseOffline,
+  bulkDeleteExpensesOffline,
   isInitialized,
   expenses: offlineExpenses,
   hasUnsyncedData,
-  syncWithServer
+  syncWithServer,
+  cleanupInvalidSyncActions,
+  clearPendingSync
 } = useOfflineStorage()
 
-// Event listeners for data table actions
+// Using global offline systems instead of local instances
+
+// Vue Learning Point #30: Computed property to merge server and offline data
+const allExpenses = computed(() => {
+  const serverExpenses = props.expenses || []
+  const offline = offlineExpenses.value || []
+  
+  console.log('🔍 Debug expenses:', { serverCount: serverExpenses.length, offlineCount: offline.length })
+  
+  // Convert offline expenses to match server format (these should only be unsynced expenses)
+  const formattedOfflineExpenses = offline
+    .filter((expense: any) => {
+      // Only include expenses that haven't been synced to server yet
+      // (synced expenses should have been removed from offline storage)
+      return !expense.id || expense.syncStatus === 'pending' || expense.syncStatus === 'failed'
+    })
+    .map((expense: any) => ({
+      id: null, // Offline expenses don't have server IDs yet
+      localId: expense.localId, // Keep localId for offline operations
+      description: expense.description,
+      amount: String(expense.amount || '0'), // Safely convert to string
+      date: expense.date,
+      user_id: expense.user_id,
+      created_at: new Date().toISOString(), // Use current time as placeholder
+      updated_at: new Date().toISOString(),
+      isOffline: true // Mark as offline for styling/indication
+    }))
+  
+  // Additional deduplication check (safety net)
+  // Remove any server expenses that might match offline expenses by description+amount+date
+  const serverExpenseKeys = new Set(
+    serverExpenses.map(exp => `${exp.description}-${exp.amount}-${exp.date}`)
+  )
+  
+  const uniqueOfflineExpenses = formattedOfflineExpenses.filter(offlineExp => {
+    const key = `${offlineExp.description}-${offlineExp.amount}-${offlineExp.date}`
+    return !serverExpenseKeys.has(key)
+  })
+  
+  // Combine and sort by date (newest first)
+  const combined = [...serverExpenses, ...uniqueOfflineExpenses]
+  return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+})
+
+
+// Event listeners for data table actions  
 onMounted(async () => {
-  // Vue Learning Point #28: Initialize composables on component mount
   try {
-    console.log('🚀 Initializing offline storage...')
+    console.log('🚀 Initializing expense page...')
+    
+    // Initialize local storage system
     await initDB()
     initNetworkSync()
-    console.log('✅ Offline storage ready!')
+    
+    console.log('✅ Expense page storage ready!')
+    
   } catch (error) {
-    console.error('Failed to initialize offline storage:', error)
-    toast.error('Failed to initialize offline storage')
+    console.error('Failed to initialize expense page:', error)
+    toast.error('Failed to initialize app')
   }
 
   // Listen for edit events from the data table
@@ -94,6 +169,19 @@ onMounted(async () => {
   document.addEventListener('deleteExpense', (event: any) => {
     openDeleteDialog(event.detail)
   })
+
+  // Expose debugging functions to console (remove in production)
+  if (import.meta.env.DEV) {
+    (window as any).debugOfflineStorage = {
+      cleanupInvalidSyncActions,
+      clearPendingSync,
+      syncWithServer,
+      offlineExpenses,
+      hasUnsyncedData
+    }
+    console.log('🔧 Debug functions available:')
+    console.log('  - window.debugOfflineStorage')
+  }
 })
 
 // Clean up event listeners
@@ -110,7 +198,10 @@ const submit = async () => {
     }
 
     try {
+        console.log('🔍 Submit debug:', { isOnline: isOnline.value, formData: form.data })
+        
         if (isOnline.value) {
+            console.log('📡 Taking ONLINE path')
             // Online: Use traditional Laravel form submission
             form.post(route('expense.store'), {
                 onSuccess: () => {
@@ -124,13 +215,22 @@ const submit = async () => {
                 },
             });
         } else {
+            console.log('📴 Taking OFFLINE path')
             // Offline: Save to local storage
             const user = usePage().props.auth?.user as any
             
+            console.log('🔍 Debug offline form data:', {
+                description: form.description,
+                amount: form.amount,
+                date: form.date,
+                user_id: user?.id
+            })
+            
             await createExpenseOffline({
-                description: form.data.description,
-                amount: form.data.amount,
-                date: form.data.date,
+                description: form.description,
+                amount: form.amount,
+                date: form.date,
+                category_id: form.category_id,
                 user_id: user?.id || 1 // Fallback user ID
             })
 
@@ -157,6 +257,38 @@ const openEditDialog = (expense: any) => {
 const openDeleteDialog = (expense: any) => {
     currentExpense.value = expense
     deleteDialogOpen.value = true
+}
+
+// Bulk action handlers
+const handleBulkDelete = (expenses: any[]) => {
+    selectedExpensesForBulkDelete.value = expenses
+    bulkDeleteDialogOpen.value = true
+}
+
+const handleBulkExport = (expenses: any[]) => {
+    // Create CSV content
+    const headers = ['Description', 'Amount', 'Date']
+    const csvContent = [
+        headers.join(','),
+        ...expenses.map(expense => [
+            `"${expense.description}"`,
+            expense.amount,
+            expense.date
+        ].join(','))
+    ].join('\n')
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `expenses_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    toast.success(`Exported ${expenses.length} expense(s) to CSV`)
 }
 
 // Real-time money formatting for main form
@@ -216,7 +348,7 @@ const onMainAmountInput = (event: Event) => {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <form @submit.prevent="submit" class="grid gap-4 md:grid-cols-3">
+                    <form @submit.prevent="submit" class="grid gap-4 md:grid-cols-4">
                         <!-- Description Field -->
                         <div class="space-y-2">
                             <Label for="description">Description</Label>
@@ -243,6 +375,28 @@ const onMainAmountInput = (event: Event) => {
                             />
                             <InputError :message="form.errors.amount" />
                         </div>
+
+                        <!-- Category Field -->
+                        <div class="space-y-2">
+                            <Label for="category">Category</Label>
+                            <Select v-model="form.category_id">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="category in categories" :key="category.id" :value="category.id.toString()">
+                                        <div class="flex items-center gap-2">
+                                            <div 
+                                                class="w-3 h-3 rounded-full" 
+                                                :style="{ backgroundColor: category.color }"
+                                            ></div>
+                                            {{ category.name }}
+                                        </div>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <InputError :message="form.errors.category_id" />
+                        </div>
                         
                         <!-- Date Field -->
                         <div class="space-y-2">
@@ -255,7 +409,7 @@ const onMainAmountInput = (event: Event) => {
                         </div>
                         
                         <!-- Submit Button -->
-                        <div class="md:col-span-3">
+                        <div class="md:col-span-4">
                             <Button 
                                 type="submit" 
                                 :disabled="form.processing"
@@ -275,7 +429,12 @@ const onMainAmountInput = (event: Event) => {
                     <CardTitle class="text-lg">Recent Expenses</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <ExpenseDataTable :columns="columns" :data="expenses" />
+                    <ExpenseDataTable 
+                        :columns="columns" 
+                        :data="allExpenses"
+                        @bulk-delete="handleBulkDelete"
+                        @bulk-export="handleBulkExport"
+                    />
                 </CardContent>
             </Card>
         </div>
@@ -286,6 +445,7 @@ const onMainAmountInput = (event: Event) => {
             :open="editDialogOpen"
             @update:open="editDialogOpen = $event"
             :expense="currentExpense"
+            :categories="categories"
         />
 
         <!-- Delete Expense Dialog -->
@@ -294,6 +454,16 @@ const onMainAmountInput = (event: Event) => {
             :open="deleteDialogOpen"
             @update:open="deleteDialogOpen = $event"
             :expense="currentExpense"
+            :delete-expense-offline="deleteExpenseOffline"
+        />
+
+        <!-- Bulk Delete Expense Dialog -->
+        <BulkDeleteExpenseDialog
+            :open="bulkDeleteDialogOpen"
+            @update:open="bulkDeleteDialogOpen = $event"
+            :expenses="selectedExpensesForBulkDelete"
+            :is-initialized="isInitialized"
+            :bulk-delete-expenses-offline="bulkDeleteExpensesOffline"
         />
     </AppLayout>
 </template>

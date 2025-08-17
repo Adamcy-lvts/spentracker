@@ -16,6 +16,13 @@ export interface Expense {
   description: string
   amount: string
   date: string
+  category_id: number | null
+  category?: {
+    id: number
+    name: string
+    icon: string
+    color: string
+  }
   user_id: number
   created_at: string
   updated_at: string
@@ -87,6 +94,23 @@ export const columns: ColumnDef<Expense>[] = [
     cell: ({ row }) => {
       const amount = row.getValue('amount') as string
       return h('div', { class: 'font-semibold text-foreground' }, formatCurrency(amount))
+    },
+  },
+  {
+    accessorKey: 'category',
+    header: 'Category',
+    cell: ({ row }) => {
+      const category = row.original.category
+      if (!category) {
+        return h('div', { class: 'text-muted-foreground text-sm' }, 'Uncategorized')
+      }
+      return h('div', { class: 'flex items-center gap-2' }, [
+        h('div', { 
+          class: 'w-3 h-3 rounded-full', 
+          style: { backgroundColor: category.color } 
+        }),
+        h('span', { class: 'text-sm' }, category.name)
+      ])
     },
   },
   {

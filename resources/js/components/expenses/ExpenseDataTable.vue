@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
-import { ChevronDown, Calendar } from 'lucide-vue-next'
+import { ChevronDown, Calendar, Trash2, Download, X } from 'lucide-vue-next'
 import { ref, computed, onMounted } from 'vue'
 import { valueUpdater } from '@/lib/utils'
 
@@ -72,7 +72,7 @@ const monthOptions = computed(() => {
   }
   
   return [
-    { value: '', label: 'All Months' },
+    { value: 'all', label: 'All Months' },
     ...months
   ]
 })
@@ -86,7 +86,7 @@ onMounted(() => {
 
 // Filter data based on selected month
 const filteredData = computed(() => {
-  if (!selectedMonth.value) return props.data
+  if (!selectedMonth.value || selectedMonth.value === 'all') return props.data
   
   return props.data.filter(expense => {
     const expenseDate = new Date(expense.date)
@@ -118,6 +118,31 @@ const summary = computed(() => {
     total: formatCurrency(total)
   }
 })
+
+// Bulk actions functionality
+const selectedRowsCount = computed(() => table.getFilteredSelectedRowModel().rows.length)
+const selectedExpenses = computed(() => table.getFilteredSelectedRowModel().rows.map(row => row.original))
+
+const emit = defineEmits<{
+  bulkDelete: [expenses: any[]]
+  bulkExport: [expenses: any[]]
+}>()
+
+const handleBulkDelete = () => {
+  if (selectedExpenses.value.length > 0) {
+    emit('bulkDelete', selectedExpenses.value)
+  }
+}
+
+const handleBulkExport = () => {
+  if (selectedExpenses.value.length > 0) {
+    emit('bulkExport', selectedExpenses.value)
+  }
+}
+
+const clearSelection = () => {
+  table.resetRowSelection()
+}
 
 const table = useVueTable({
   get data() { return filteredData.value },
@@ -193,6 +218,27 @@ const table = useVueTable({
           :model-value="String(table.getColumn('description')?.getFilterValue() ?? '')"
           @update:model-value="table.getColumn('description')?.setFilterValue($event)"
         />
+      </div>
+    </div>
+
+    <!-- Bulk Actions Toolbar -->
+    <div v-if="selectedRowsCount > 0" class="flex items-center justify-between p-4 bg-muted/50 border rounded-lg mb-4">
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-medium">{{ selectedRowsCount }} expense(s) selected</span>
+        <Button variant="ghost" size="sm" @click="clearSelection">
+          <X class="h-4 w-4 mr-1" />
+          Clear
+        </Button>
+      </div>
+      <div class="flex items-center gap-2">
+        <Button variant="outline" size="sm" @click="handleBulkExport">
+          <Download class="h-4 w-4 mr-1" />
+          Export Selected
+        </Button>
+        <Button variant="destructive" size="sm" @click="handleBulkDelete">
+          <Trash2 class="h-4 w-4 mr-1" />
+          Delete Selected
+        </Button>
       </div>
     </div>
 

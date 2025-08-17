@@ -5,12 +5,14 @@ import { useOfflineStorage } from '@/composables/useOfflineStorage'
 import { Wifi, WifiOff, CloudOff, RotateCw, AlertCircle } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
-// Vue Learning Point #19: Using multiple composables in a component
+// Vue Learning Point #47: Using Multiple Composables Together
+// Each composable manages different parts of our app state
 const { isOnline, connectionType, isSlowConnection } = useNetworkStatus()
 const { pendingSyncCount, hasUnsyncedData, syncStatus } = useOfflineStorage()
 
-// Vue Learning Point #20: Complex computed properties
+// Vue Learning Point #48: Complex Computed with Multiple Data Sources
 const statusInfo = computed(() => {
+  // Priority 1: Offline status
   if (!isOnline.value) {
     return {
       icon: WifiOff,
