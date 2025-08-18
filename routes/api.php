@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ExpenseController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,5 +47,18 @@ Route::get('/health', function () {
         'status' => 'ok',
         'message' => 'API is running',
         'timestamp' => now()->toISOString(),
+    ]);
+});
+
+// Debug endpoint (public)
+Route::get('/debug', function () {
+    return response()->json([
+        'server_time' => now()->toISOString(),
+        'app_env' => config('app.env'),
+        'database_connected' => DB::connection()->getPdo() ? true : false,
+        'sanctum_enabled' => class_exists('Laravel\Sanctum\Sanctum'),
+        'request_ip' => request()->ip(),
+        'user_agent' => request()->userAgent(),
+        'headers_received' => request()->headers->all(),
     ]);
 });
