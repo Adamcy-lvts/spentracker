@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -28,19 +29,60 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        // Create API token for the user
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        // Create token with expiry (24 hours)
+        $tokenResult = $user->createToken('mobile-app', ['*'], Carbon::now()->addHours(24));
+        $token = $tokenResult->plainTextToken;
+
+        // Calculate expiry info
+        $expiresAt = Carbon::now()->addHours(24);
+        $expiresIn = $expiresAt->diffInSeconds(Carbon::now());
 
         return response()->json([
-            'message' => 'User registered successfully',
+            'message' => 'Login successful',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
             ],
             'token' => $token,
+            'access_token' => $token, // For consistency
+            'expires_in' => $expiresIn, // Seconds until expiry
+            'expires_at' => $expiresAt->toISOString(), // ISO timestamp
         ], Response::HTTP_CREATED);
     }
+
+    /**
+     * Refresh the user's access token
+     */
+    public function refresh(Request $request)
+    {
+        $user = $request->user();
+
+        // Delete current token
+        $request->user()->currentAccessToken()->delete();
+
+        // Create new token with expiry (24 hours)
+        $tokenResult = $user->createToken('mobile-app', ['*'], Carbon::now()->addHours(24));
+        $token = $tokenResult->plainTextToken;
+
+        // Calculate expiry info
+        $expiresAt = Carbon::now()->addHours(24);
+        $expiresIn = $expiresAt->diffInSeconds(Carbon::now());
+
+        return response()->json([
+            'message' => 'Token refreshed successfully',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+            ],
+            'token' => $token,
+            'access_token' => $token,
+            'expires_in' => $expiresIn,
+            'expires_at' => $expiresAt->toISOString(),
+        ]);
+    }
+
 
     /**
      * Login user and create token

@@ -22,19 +22,21 @@ Route::prefix('v1')->group(function () {
     // Authentication routes (no auth required)
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    
+
     // Protected routes (require authentication)
     Route::middleware('auth:sanctum')->group(function () {
         // User routes
         Route::get('/user', [AuthController::class, 'user']);
         Route::post('/logout', [AuthController::class, 'logout']);
-        
+        Route::post('/refresh', [AuthController::class, 'refresh']); // ADD THIS LINE
+
+
         // Category routes (read-only for mobile apps typically)
         Route::apiResource('categories', CategoryController::class);
-        
+
         // Expense routes
         Route::apiResource('expenses', ExpenseController::class);
-        
+
         // Additional expense endpoints
         Route::post('/expenses/bulk-delete', [ExpenseController::class, 'bulkDelete']);
         Route::get('/expenses-statistics', [ExpenseController::class, 'statistics']);
