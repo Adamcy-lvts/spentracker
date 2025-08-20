@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Category;
+use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -26,11 +27,21 @@ class CategorySeeder extends Seeder
             ['name' => 'Other', 'icon' => 'more-horizontal', 'color' => '#6B7280', 'description' => 'Miscellaneous expenses'],
         ];
 
-        foreach ($categories as $category) {
-            Category::firstOrCreate(
-                ['name' => $category['name']],
-                $category
-            );
+        // Get all users or create default categories for the first user
+        $users = User::all();
+        
+        if ($users->isEmpty()) {
+            $this->command->warn('No users found. Categories will not be created.');
+            return;
+        }
+
+        foreach ($users as $user) {
+            foreach ($categories as $category) {
+                Category::firstOrCreate(
+                    ['name' => $category['name'], 'user_id' => $user->id],
+                    [...$category, 'user_id' => $user->id]
+                );
+            }
         }
     }
 }

@@ -14,7 +14,9 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        $categories = Category::orderBy('name')->get();
+        $categories = Category::where('user_id', auth()->id())
+            ->orderBy('name')
+            ->get();
 
         return response()->json([
             'success' => true,
@@ -28,12 +30,15 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories',
+            'name' => 'required|string|max:255|unique:categories,name,NULL,id,user_id,' . auth()->id(),
             'color' => 'required|string|max:7', // hex color code
             'icon' => 'nullable|string|max:255',
         ]);
 
-        $category = Category::create($request->validated());
+        $category = Category::create([
+            ...$request->validated(),
+            'user_id' => auth()->id(),
+        ]);
 
         return response()->json([
             'success' => true,
@@ -47,7 +52,8 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('user_id', auth()->id())
+            ->findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -60,10 +66,11 @@ class CategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('user_id', auth()->id())
+            ->findOrFail($id);
 
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $id,
+            'name' => 'required|string|max:255|unique:categories,name,' . $id . ',id,user_id,' . auth()->id(),
             'color' => 'required|string|max:7',
             'icon' => 'nullable|string|max:255',
         ]);
@@ -82,7 +89,8 @@ class CategoryController extends Controller
      */
     public function destroy(string $id)
     {
-        $category = Category::findOrFail($id);
+        $category = Category::where('user_id', auth()->id())
+            ->findOrFail($id);
 
         // Check if category is being used by any expenses
         if ($category->expenses()->exists()) {
