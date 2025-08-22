@@ -33,6 +33,13 @@ class User extends Authenticatable
         'last_login_city',
         'last_login_country',
         'last_login_device_type',
+        // New detailed location fields
+        'last_login_street_address',
+        'last_login_neighborhood',
+        'last_login_district',
+        'last_login_state',
+        'last_login_postal_code',
+        'last_login_full_address',
     ];
 
     /**
@@ -101,6 +108,13 @@ class User extends Authenticatable
             'last_login_longitude' => $locationData['longitude'],
             'last_login_city' => $locationData['city'],
             'last_login_country' => $locationData['country'],
+            // New detailed location fields
+            'last_login_street_address' => $locationData['street_address'],
+            'last_login_neighborhood' => $locationData['neighborhood'],
+            'last_login_district' => $locationData['district'],
+            'last_login_state' => $locationData['state'],
+            'last_login_postal_code' => $locationData['postal_code'],
+            'last_login_full_address' => $locationData['full_address'],
         ]);
     }
 
@@ -132,6 +146,12 @@ class User extends Authenticatable
             'longitude' => null,
             'city' => null,
             'country' => null,
+            'street_address' => null,
+            'neighborhood' => null,
+            'district' => null,
+            'state' => null,
+            'postal_code' => null,
+            'full_address' => null,
         ];
 
         // Check for GPS coordinates from mobile apps
@@ -140,8 +160,18 @@ class User extends Authenticatable
             $locationData['longitude'] = $request->input('longitude');
             $locationData['city'] = $request->input('city', 'Unknown City');
             $locationData['country'] = $request->input('country', 'Unknown Country');
-            
-            $displayLocation = $locationData['city'] . ', ' . $locationData['country'];
+
+            // New detailed location fields
+            $locationData['street_address'] = $request->input('street_address');
+            $locationData['neighborhood'] = $request->input('neighborhood');
+            $locationData['district'] = $request->input('district');
+            $locationData['state'] = $request->input('state');
+            $locationData['postal_code'] = $request->input('postal_code');
+            $locationData['full_address'] = $request->input('full_address');
+
+            // Use full address if available, otherwise fallback to city, country
+            $displayLocation = $locationData['full_address'] ?: ($locationData['city'] . ', ' . $locationData['country']);
+
             if ($deviceType === 'Android' || $deviceType === 'iOS') {
                 $displayLocation .= ' (GPS)';
             }

@@ -29,6 +29,9 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
+        // Track registration location (same as login)
+        $user->updateLoginTracking($request);
+
         // Create token with expiry (24 hours)
         $tokenResult = $user->createToken('mobile-app', ['*'], Carbon::now()->addHours(24));
         $token = $tokenResult->plainTextToken;
@@ -38,7 +41,7 @@ class AuthController extends Controller
         $expiresIn = $expiresAt->diffInSeconds(Carbon::now());
 
         return response()->json([
-            'message' => 'Login successful',
+            'message' => 'Registration successful',
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
