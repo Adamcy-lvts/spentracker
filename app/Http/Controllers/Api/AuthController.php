@@ -105,6 +105,9 @@ class AuthController extends Controller
         // Delete old tokens for this user (optional - for single device login)
         // $user->tokens()->delete();
 
+        // Update login tracking
+        $user->updateLoginTracking($request);
+
         // Create new API token
         $token = $user->createToken('mobile-app')->plainTextToken;
 
@@ -114,6 +117,7 @@ class AuthController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'is_admin' => $user->is_admin,
             ],
             'token' => $token,
         ]);
@@ -142,6 +146,7 @@ class AuthController extends Controller
                 'id' => $request->user()->id,
                 'name' => $request->user()->name,
                 'email' => $request->user()->email,
+                'is_admin' => $request->user()->is_admin,
             ]
         ]);
     }

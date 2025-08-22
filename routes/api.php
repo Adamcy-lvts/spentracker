@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Admin\UserMonitorController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 
@@ -40,6 +41,14 @@ Route::prefix('v1')->group(function () {
         // Additional expense endpoints
         Route::post('/expenses/bulk-delete', [ExpenseController::class, 'bulkDelete']);
         Route::get('/expenses-statistics', [ExpenseController::class, 'statistics']);
+
+        // Admin routes (require admin role)
+        Route::prefix('admin')->group(function () {
+            Route::get('/users', [UserMonitorController::class, 'index']);
+            Route::get('/users/{user}', [UserMonitorController::class, 'show']);
+            Route::get('/users-statistics', [UserMonitorController::class, 'statistics']);
+            Route::patch('/users/{user}/toggle-admin', [UserMonitorController::class, 'toggleAdmin']);
+        });
     });
 });
 

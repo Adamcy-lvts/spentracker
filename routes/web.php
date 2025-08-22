@@ -269,3 +269,57 @@ Route::delete('expenses/bulk', function () {
     
     return redirect()->route('expense')->with('message', "Successfully deleted {$deletedCount} expense(s)!");
 })->middleware(['auth', 'verified'])->name('expenses.bulk-delete');
+
+// Admin routes
+Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {
+    Route::get('users', function () {
+        // Check if user is admin
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Admin access required.');
+        }
+        
+        // Get users data
+        $users = App\Models\User::select([
+            'id', 'name', 'email', 'is_admin', 'email_verified_at', 
+            'last_login_at', 'last_login_ip', 'last_login_user_agent', 
+            'last_login_location', 'last_login_latitude', 'last_login_longitude',
+            'last_login_city', 'last_login_country', 'last_login_device_type',
+            'created_at', 'updated_at'
+        ])
+        ->orderBy('last_login_at', 'desc')
+        ->get();
+
+        // Calculate statistics
+        $totalUsers = App\Models\User::count();
+        $adminUsers = App\Models\User::where('is_admin', true)->count();
+        $activeUsersLastWeek = App\Models\User::where('last_login_at', '>=', now()->subWeek())->count();
+        $activeUsersLastMonth = App\Models\User::where('last_login_at', '>=', now()->subMonth())->count();
+        $newUsersThisMonth = App\Models\User::where('created_at', '>=', now()->startOfMonth())->count();
+
+        $statistics = [
+            'total_users' => $totalUsers,
+            'admin_users' => $adminUsers,
+            'regular_users' => $totalUsers - $adminUsers,
+            'active_users_last_week' => $activeUsersLastWeek,
+            'active_users_last_month' => $activeUsersLastMonth,
+            'new_users_this_month' => $newUsersThisMonth,
+            'inactive_users' => $totalUsers - $activeUsersLastMonth,
+        ];
+        
+        return Inertia::render('admin/UserMonitor', [
+            'users' => $users,
+            'statistics' => $statistics
+        ]);
+    })->name('admin.users');
+
+    Route::patch('users/{user}/toggle-admin', function (App\Models\User $user) {
+        // Check if user is admin
+        if (!auth()->user()->isAdmin()) {
+            abort(403, 'Unauthorized. Admin access required.');
+        }
+        
+        $user->update(['is_admin' => !$user->is_admin]);
+        
+        return redirect()->route('admin.users')->with('message', $user->is_admin ? 'User promoted to admin' : 'User demoted from admin');
+    })->name('admin.users.toggle-admin');
+});
