@@ -28,7 +28,7 @@ const submit = () => {
 </script>
 
 <template>
-    <AuthBase title="Log in to your account" description="Enter your email and password below to log in">
+    <AuthBase title="Log in to your account" description="Enter your email address or phone number and password below to log in">
         <Head title="Log in" />
 
         <div v-if="status" class="mb-4 text-center text-sm font-medium text-green-600">
@@ -47,9 +47,12 @@ const submit = () => {
                         :tabindex="1"
                         autocomplete="username"
                         v-model="form.login"
-                        placeholder="email@example.com or +1234567890"
+                        placeholder="Enter your email or phone number (+234801234567)"
                     />
                     <InputError :message="form.errors.login" />
+                    <div class="text-xs text-muted-foreground">
+                        You can use either your email address or phone number to log in
+                    </div>
                 </div>
 
                 <div class="grid gap-2">

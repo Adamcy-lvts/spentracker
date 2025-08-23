@@ -17,6 +17,18 @@ const form = useForm({
 });
 
 const submit = () => {
+    // Client-side validation: at least one contact method required
+    if (!form.email && !form.phone_number) {
+        form.setError('email', 'Either email or phone number must be provided.');
+        form.setError('phone_number', 'Either email or phone number must be provided.');
+        return;
+    }
+
+    // Clear any existing errors for contact fields if validation passes
+    if (form.email || form.phone_number) {
+        form.clearErrors('email', 'phone_number');
+    }
+
     form.post(route('register'), {
         onFinish: () => form.reset('password', 'password_confirmation'),
     });
@@ -35,16 +47,28 @@ const submit = () => {
                     <InputError :message="form.errors.name" />
                 </div>
 
-                <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
-                    <Input id="email" type="email" required :tabindex="2" autocomplete="email" v-model="form.email" placeholder="email@example.com" />
-                    <InputError :message="form.errors.email" />
-                </div>
+                <div class="space-y-1">
+                    <div class="text-sm font-medium text-foreground mb-3">
+                        Contact Information (at least one required)
+                    </div>
+                    
+                    <div class="grid gap-4">
+                        <div class="grid gap-2">
+                            <Label for="email" class="text-sm">Email address (optional)</Label>
+                            <Input id="email" type="email" :tabindex="2" autocomplete="email" v-model="form.email" placeholder="email@example.com" />
+                            <InputError :message="form.errors.email" />
+                        </div>
 
-                <div class="grid gap-2">
-                    <Label for="phone_number">Phone number (optional)</Label>
-                    <Input id="phone_number" type="tel" :tabindex="3" autocomplete="tel" v-model="form.phone_number" placeholder="+1234567890" />
-                    <InputError :message="form.errors.phone_number" />
+                        <div class="grid gap-2">
+                            <Label for="phone_number" class="text-sm">Phone number (optional)</Label>
+                            <Input id="phone_number" type="tel" :tabindex="3" autocomplete="tel" v-model="form.phone_number" placeholder="+234801234567 or 08012345678" />
+                            <InputError :message="form.errors.phone_number" />
+                        </div>
+                    </div>
+                    
+                    <div class="text-xs text-muted-foreground mt-2 px-1">
+                        💡 You can provide either email, phone, or both for account access
+                    </div>
                 </div>
 
                 <div class="grid gap-2">

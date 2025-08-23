@@ -19,10 +19,18 @@ class AuthController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
+            'email' => 'nullable|string|email|max:255|unique:users',
             'phone_number' => 'nullable|string|max:20|unique:users',
             'password' => 'required|string|min:8|confirmed',
         ]);
+
+        // At least one of email or phone_number must be provided
+        if (empty($request->email) && empty($request->phone_number)) {
+            throw ValidationException::withMessages([
+                'email' => ['Either email or phone number must be provided.'],
+                'phone_number' => ['Either email or phone number must be provided.'],
+            ]);
+        }
 
         $user = User::create([
             'name' => $request->name,
