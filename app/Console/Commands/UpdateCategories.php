@@ -28,6 +28,18 @@ class UpdateCategories extends Command
     public function handle()
     {
         $this->info('Updating categories to global system...');
+        
+        $this->warn('⚠️  This will remove all existing categories and their links to expenses.');
+        $this->warn('   You will need to manually reassign categories to your expenses.');
+        
+        if (!$this->confirm('Do you want to continue?')) {
+            $this->info('Operation cancelled.');
+            return Command::SUCCESS;
+        }
+
+        // Set expenses with categories to null (uncategorized)
+        DB::table('expenses')->whereNotNull('category_id')->update(['category_id' => null]);
+        $this->info('Set all expenses to uncategorized.');
 
         // Disable foreign key checks temporarily
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
@@ -63,6 +75,7 @@ class UpdateCategories extends Command
 
         $this->info('Created ' . count($categories) . ' global categories.');
         $this->info('Categories updated successfully! 🎉');
+        $this->info('💡 You can now edit your expenses to assign them to the new categories.');
 
         return Command::SUCCESS;
     }
