@@ -36,6 +36,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('categories', CategoryController::class);
 
         // Expense routes
+        Route::get('expenses/sync', [ExpenseController::class, 'sync']);
         Route::apiResource('expenses', ExpenseController::class);
 
         // Additional expense endpoints
