@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Category;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class UpdateCategories extends Command
 {
@@ -28,9 +29,15 @@ class UpdateCategories extends Command
     {
         $this->info('Updating categories to global system...');
 
+        // Disable foreign key checks temporarily
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        
         // Clear existing categories
         Category::truncate();
         $this->info('Cleared existing categories.');
+        
+        // Re-enable foreign key checks
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
         // Define the new global categories
         $categories = [
