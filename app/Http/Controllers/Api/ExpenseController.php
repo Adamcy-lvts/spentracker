@@ -60,7 +60,7 @@ class ExpenseController extends Controller
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'category_id' => 'nullable|exists:categories,id,user_id,' . Auth::id(),
+            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         $expense = Expense::create([
@@ -110,7 +110,7 @@ class ExpenseController extends Controller
             'description' => 'required|string|max:255',
             'amount' => 'required|numeric|min:0.01',
             'date' => 'required|date',
-            'category_id' => 'nullable|exists:categories,id,user_id,' . Auth::id(),
+            'category_id' => 'nullable|exists:categories,id',
         ]);
 
         $expense->update([
@@ -189,10 +189,7 @@ class ExpenseController extends Controller
 
         // Get top categories
         $topCategories = Expense::where('user_id', Auth::id())
-            ->join('categories', function($join) {
-                $join->on('expenses.category_id', '=', 'categories.id')
-                     ->where('categories.user_id', '=', Auth::id());
-            })
+            ->join('categories', 'expenses.category_id', '=', 'categories.id')
             ->selectRaw('categories.name, categories.color, SUM(expenses.amount) as total_amount')
             ->groupBy('categories.id', 'categories.name', 'categories.color')
             ->orderByDesc('total_amount')

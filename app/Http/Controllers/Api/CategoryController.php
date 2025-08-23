@@ -14,9 +14,7 @@ class CategoryController extends Controller
      */
     public function index()
     {
-        $categories = Category::where('user_id', auth()->id())
-            ->orderBy('name')
-            ->get();
+        $categories = Category::orderBy('name')->get();
 
         return response()->json([
             'success' => true,
@@ -30,15 +28,13 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,NULL,id,user_id,' . auth()->id(),
+            'name' => 'required|string|max:255|unique:categories,name',
             'color' => 'required|string|max:7', // hex color code
             'icon' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
         ]);
 
-        $category = Category::create([
-            ...$request->validated(),
-            'user_id' => auth()->id(),
-        ]);
+        $category = Category::create($request->validated());
 
         return response()->json([
             'success' => true,
@@ -52,8 +48,7 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        $category = Category::where('user_id', auth()->id())
-            ->findOrFail($id);
+        $category = Category::findOrFail($id);
 
         return response()->json([
             'success' => true,
@@ -66,13 +61,13 @@ class CategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $category = Category::where('user_id', auth()->id())
-            ->findOrFail($id);
+        $category = Category::findOrFail($id);
 
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,' . $id . ',id,user_id,' . auth()->id(),
+            'name' => 'required|string|max:255|unique:categories,name,' . $id,
             'color' => 'required|string|max:7',
             'icon' => 'nullable|string|max:255',
+            'description' => 'nullable|string|max:255',
         ]);
 
         $category->update($request->validated());
@@ -89,8 +84,7 @@ class CategoryController extends Controller
      */
     public function destroy(string $id)
     {
-        $category = Category::where('user_id', auth()->id())
-            ->findOrFail($id);
+        $category = Category::findOrFail($id);
 
         // Check if category is being used by any expenses
         if ($category->expenses()->exists()) {
