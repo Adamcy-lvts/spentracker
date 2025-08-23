@@ -97,6 +97,21 @@ class ExpenseController extends Controller
         ]);
     }
 
+    public function sync(Request $request)
+    {
+        $expenses = Expense::where('user_id', Auth::id())
+            ->with('category')
+            ->orderBy('date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get(); // No pagination - get all
+
+        return response()->json([
+            'success' => true,
+            'data' => $expenses,
+        ]);
+    }
+
+
     /**
      * Update the specified expense.
      */
