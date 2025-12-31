@@ -63,14 +63,14 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
                         <p class="mb-4">You may request deletion of your SpentTracker account and associated data by
                             sending an email to:</p>
 
-                        <a href="mailto:support@spenttracker.live"
+                        <a href="mailto:devcentric.studio@gmail.com"
                             class="inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-teal-500/10 to-cyan-500/10 border border-teal-500/20 px-6 py-4 transition-all hover:border-teal-500/40 hover:from-teal-500/20 hover:to-cyan-500/20">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-teal-400" fill="none"
                                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                     d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
-                            <span class="text-sm font-bold text-white">support@spenttracker.live</span>
+                            <span class="text-sm font-bold text-white">devcentric.studio@gmail.com</span>
                         </a>
 
                         <p class="mt-4 text-white/60">
@@ -199,8 +199,8 @@ import AppLogoIcon from '@/components/AppLogoIcon.vue';
                         <p class="text-sm font-medium opacity-60 mb-6">Questions about data deletion? We're here to
                             help.</p>
                         <div class="flex flex-wrap gap-4">
-                            <a href="mailto:support@spenttracker.live"
-                                class="bg-black text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition hover:bg-teal-600">support@spenttracker.live</a>
+                            <a href="mailto:devcentric.studio@gmail.com"
+                                class="bg-black text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition hover:bg-teal-600">devcentric.studio@gmail.com</a>
                             <a href="https://spentracker.live" target="_blank"
                                 class="border border-black/10 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-black/40 transition hover:border-black/20 hover:text-black/60">spentracker.live</a>
                         </div>
