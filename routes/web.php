@@ -14,6 +14,10 @@ Route::get('privacy-policy', function () {
 
 Route::redirect('privacy', 'privacy-policy');
 
+Route::get('delete-account', function () {
+    return Inertia::render('DeleteAccount');
+})->name('delete-account');
+
 Route::get('dashboard', function () {
     $userId = auth()->id();
     $now = now();
