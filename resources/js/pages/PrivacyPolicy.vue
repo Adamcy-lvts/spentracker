@@ -121,13 +121,25 @@ const scrollTo = (id: string) => {
                                 <h3 class="font-bold text-white/90 mb-2">b. Financial & Expense Data</h3>
                                 <p>Users may voluntarily enter amounts, categories, notes, dates, and budget summaries.
                                     <br /> <span class="text-orange-400 font-bold">⚠️ We do not collect bank account
-                                        numbers, card details, or PINs.</span></p>
+                                        numbers, card details, or PINs.</span>
+                                </p>
                             </div>
 
                             <div>
                                 <h3 class="font-bold text-white/90 mb-2">c. Location Information</h3>
-                                <p>With permission, we may collect location data for tagging expenses and providing
-                                    insights. Location access is optional and data is not shared or sold.</p>
+                                <p class="mb-3">SpentTracker may request access to your device’s location while the app
+                                    is in use to enable optional features such as tagging expenses by location and
+                                    providing location-based insights.</p>
+                                <p class="mb-2">Location data is:</p>
+                                <ul class="list-none p-0 space-y-1 mb-3 opacity-80">
+                                    <li>• Collected only when the app is in the foreground</li>
+                                    <li>• Optional and can be denied or revoked at any time</li>
+                                    <li>• Not collected in the background</li>
+                                    <li>• Not used for advertising or tracking</li>
+                                    <li>• Not shared or sold</li>
+                                </ul>
+                                <p class="italic opacity-70">The app continues to function without location access, with
+                                    reduced location-based features.</p>
                             </div>
 
                             <div>
@@ -175,8 +187,15 @@ const scrollTo = (id: string) => {
 
                     <section id="permissions" class="space-y-4">
                         <h2 class="text-lg font-black text-white uppercase tracking-wider">5. Permissions Used</h2>
-                        <p><strong>Internet</strong> (login & sync), <strong>Location</strong> (optional tagging), and
-                            <strong>Storage</strong> (reports & backups). Used only for stated purposes.</p>
+                        <ul class="list-none p-0 space-y-2">
+                            <li><strong>Internet access</strong> – for account login and cloud synchronization</li>
+                            <li><strong>Location access</strong> – for optional location-based expense features</li>
+                            <li><strong>Storage access</strong> – for exporting reports or backups</li>
+                            <li><strong>Notifications</strong> – used solely to provide expense reminders, budget
+                                alerts, and important account-related information.</li>
+                        </ul>
+                        <p class="mt-4 italic opacity-70">Permissions are requested only when necessary and used only
+                            for their stated purpose.</p>
                     </section>
 
                     <section id="third-party" class="space-y-4">
