@@ -7,7 +7,7 @@ import { useOfflineStorage } from '@/composables/useOfflineStorage';
 
 export function useExpenseActions() {
     const { isOnline } = useNetworkStatus();
-    const { createExpenseOffline, isInitialized } = useOfflineStorage();
+    const { createExpenseOffline, initDB, isInitialized } = useOfflineStorage();
 
     // Format currency for display
     const formatCurrency = (amount: string) => {
@@ -32,11 +32,6 @@ export function useExpenseActions() {
         formData: { description: string; amount: string; date: string; category_id: string | null },
         options: { onSuccess?: () => void; onError?: () => void } = {}
     ) => {
-        if (!isInitialized.value) {
-            toast.error('App is still initializing, please wait...');
-            return;
-        }
-
         try {
             if (isOnline.value) {
                 // Online: Use Inertia form submission equivalent
@@ -54,6 +49,10 @@ export function useExpenseActions() {
                     },
                 });
             } else {
+                if (!isInitialized.value) {
+                    await initDB();
+                }
+
                 // Offline: Save to local storage
                 const user = usePage().props.auth?.user as any;
 

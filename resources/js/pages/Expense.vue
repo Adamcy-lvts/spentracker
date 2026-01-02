@@ -194,11 +194,6 @@ onUnmounted(() => {
 
 // Vue Learning Point #29: Offline-first form submission
 const submit = async () => {
-    if (!isInitialized.value) {
-        toast.error('App is still initializing, please wait...')
-        return
-    }
-
     try {
         console.log('🔍 Submit debug:', { isOnline: isOnline.value, formData: form.data })
         
@@ -219,6 +214,11 @@ const submit = async () => {
             });
         } else {
             console.log('📴 Taking OFFLINE path')
+            if (!isInitialized.value) {
+                await initDB()
+                initNetworkSync()
+            }
+
             // Offline: Save to local storage
             const user = usePage().props.auth?.user as any
             

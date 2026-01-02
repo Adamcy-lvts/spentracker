@@ -46,28 +46,25 @@ interface SpendTrackerDB extends DBSchema {
   }
 }
 
+// Shared state so all composable consumers reference the same storage instance.
+const isInitialized = ref(false)
+const db = ref<IDBPDatabase<SpendTrackerDB> | null>(null)
+const expenses = ref<OfflineExpense[]>([])
+const pendingSync = ref<PendingSyncAction[]>([])
+const syncStatus = reactive({
+  isOnline: navigator.onLine,
+  isSyncing: false,
+  lastSync: 0,
+  errorCount: 0
+})
+
+const expenseCount = computed(() => expenses.value.length)
+const pendingSyncCount = computed(() => pendingSync.value.length)
+const hasUnsyncedData = computed(() => pendingSyncCount.value > 0)
+
 // Vue Learning Point #3: Creating a composable function
 // Composables always start with 'use' and return reactive data/functions
 export function useOfflineStorage() {
-  // Vue Learning Point #4: Reactive state management
-  // ref() - for primitive values (strings, numbers, booleans)
-  // reactive() - for objects and arrays
-  const isInitialized = ref(false)
-  const db = ref<IDBPDatabase<SpendTrackerDB> | null>(null)
-  const expenses = ref<OfflineExpense[]>([])
-  const pendingSync = ref<PendingSyncAction[]>([])
-  const syncStatus = reactive({
-    isOnline: navigator.onLine,
-    isSyncing: false,
-    lastSync: 0,
-    errorCount: 0
-  })
-
-  // Vue Learning Point #5: Computed properties
-  // These automatically update when their dependencies change
-  const expenseCount = computed(() => expenses.value.length)
-  const pendingSyncCount = computed(() => pendingSync.value.length)
-  const hasUnsyncedData = computed(() => pendingSyncCount.value > 0)
 
   // Initialize IndexedDB
   // Vue Learning Point #6: Async functions in composables
