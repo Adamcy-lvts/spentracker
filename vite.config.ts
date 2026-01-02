@@ -39,7 +39,7 @@ export default defineConfig({
                 enabled: true, // Enable for testing
                 type: 'module'
             },
-            includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192x192.png', 'icon-512x512.png'],
+            includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png'],
             manifest: {
                 name: 'SpendTracker - Personal Expense Manager',
                 short_name: 'SpendTracker',
@@ -53,21 +53,27 @@ export default defineConfig({
                 id: '/',
                 icons: [
                     {
-                        src: 'favicon.ico',
+                        src: 'favicon.ico?v=2',
                         sizes: '16x16 32x32 48x48 64x64',
                         type: 'image/x-icon'
                     },
                     {
-                        src: 'icon-192x192.png',
+                        src: 'pwa-192x192.png?v=2',
                         sizes: '192x192',
                         type: 'image/png',
                         purpose: 'any'
                     },
                     {
-                        src: 'icon-512x512.png',
+                        src: 'pwa-512x512.png?v=2',
                         sizes: '512x512',
                         type: 'image/png',
-                        purpose: 'any maskable'
+                        purpose: 'any'
+                    },
+                    {
+                        src: 'maskable-icon-512x512.png?v=2',
+                        sizes: '512x512',
+                        type: 'image/png',
+                        purpose: 'maskable'
                     }
                 ]
             },
