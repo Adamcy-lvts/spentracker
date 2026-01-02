@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
-import { ChevronDown, Calendar, Trash2, Download, X } from 'lucide-vue-next'
+import { ChevronDown, Calendar, Trash2, Download, X, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { ref, computed, onMounted } from 'vue'
 import { valueUpdater } from '@/lib/utils'
 
@@ -40,6 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import ExpenseCard from './ExpenseCard.vue'
 
 interface Props {
   columns: ColumnDef<any, any>[]
@@ -55,6 +56,30 @@ const rowSelection = ref({})
 
 // Monthly filter state
 const selectedMonth = ref('')
+
+// Helper to format selected month for display (e.g., "January 2026")
+const formattedSelectedMonth = computed(() => {
+    if (!selectedMonth.value || selectedMonth.value === 'all') return 'All Time'
+    const [year, month] = selectedMonth.value.split('-').map(Number)
+    const date = new Date(year, month - 1)
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+})
+
+// Change month by offset (-1 for prev, +1 for next)
+const changeMonth = (offset: number) => {
+    if (!selectedMonth.value || selectedMonth.value === 'all') {
+        const now = new Date()
+        const targetDate = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+        selectedMonth.value = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`
+        return
+    }
+
+    const [year, month] = selectedMonth.value.split('-').map(Number)
+    const currentDate = new Date(year, month - 1, 1)
+    currentDate.setMonth(currentDate.getMonth() + offset)
+    
+    selectedMonth.value = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
+}
 
 // Generate month options for the current year
 const monthOptions = computed(() => {
@@ -166,8 +191,8 @@ const table = useVueTable({
 
 <template>
   <div class="w-full">
-    <!-- Filters and Controls -->
-    <div class="flex flex-col gap-4 py-4 md:flex-row md:items-center">
+    <!-- Filters and Controls (Desktop Only) -->
+    <div class="hidden md:flex flex-col gap-4 py-4 md:flex-row md:items-center">
       <!-- Top Row: Month Filter and Column Toggle -->
       <div class="flex items-center gap-4 md:flex-1">
         <!-- Month Filter -->
@@ -242,8 +267,82 @@ const table = useVueTable({
       </div>
     </div>
 
-    <!-- Data Table -->
-    <div class="rounded-md border">
+    <!-- Mobile View -->
+    <div class="md:hidden flex flex-col gap-4">
+        <!-- Month Navigator -->
+        <div class="flex items-center justify-between bg-card/50 backdrop-blur-xl border border-border/50 rounded-xl p-2 px-3">
+             <Button variant="ghost" size="icon" class="h-8 w-8 hover:bg-muted/20" @click="changeMonth(-1)">
+                 <ChevronLeft class="h-4 w-4" />
+             </Button>
+             <span class="font-medium text-sm">{{ formattedSelectedMonth }}</span>
+             <Button variant="ghost" size="icon" class="h-8 w-8 hover:bg-muted/20" @click="changeMonth(1)">
+                 <ChevronRight class="h-4 w-4" />
+             </Button>
+        </div>
+
+        <!-- Filter Chips (Visual only for now, defaulting to Month view as per tracker) -->
+        <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar overflow-y-hidden">
+            <Button 
+                variant="outline" size="sm" class="h-7 rounded-full text-xs font-normal border-border/40 bg-transparent hover:bg-secondary/50"
+                :class="{'bg-secondary/50 text-foreground border-border': false}"
+            >
+                All
+            </Button>
+            <Button 
+                variant="outline" size="sm" class="h-7 rounded-full text-xs font-medium border-primary/20 bg-primary/10 text-primary hover:bg-primary/20"
+            >
+                This Month
+            </Button>
+            <Button 
+                variant="outline" size="sm" class="h-7 rounded-full text-xs font-normal border-border/40 bg-transparent hover:bg-secondary/50"
+            >
+                Today
+            </Button>
+            <!-- Date Picker trigger could go here -->
+             <Button 
+                variant="outline" size="sm" class="h-7 rounded-full text-xs font-normal border-border/40 bg-transparent hover:bg-secondary/50"
+            >
+                Pick
+            </Button>
+        </div>
+
+        <!-- Total Summary Card -->
+        <div class="bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl p-5 shadow-sm">
+            <div class="flex flex-col items-center text-center gap-1">
+                <span class="text-xs text-muted-foreground uppercase tracking-wider">Total ({{ formattedSelectedMonth }})</span>
+                <span class="text-3xl font-bold tracking-tight mt-1">{{ summary.total }}</span>
+                <span class="text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded-full mt-2">
+                    {{ summary.count }} transactions
+                </span>
+            </div>
+        </div>
+
+        <!-- Transactions List -->
+        <div class="flex flex-col pb-24"> <!-- Added padding bottom for FAB/Nav -->
+            <h3 class="text-sm font-semibold mb-2 px-1">Recent Expenses</h3>
+            
+            <div class="bg-card/30 backdrop-blur-sm rounded-xl border border-border/30 overflow-hidden divide-y divide-border/10">
+                <div v-if="!table.getRowModel().rows?.length" class="text-center py-12 text-muted-foreground">
+                    <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-muted/50 flex items-center justify-center">
+                        <span class="text-muted-foreground text-xl">📝</span>
+                    </div>
+                    <h3 class="text-sm font-medium text-foreground mb-1">No expenses yet</h3>
+                    <p class="text-xs text-muted-foreground">Add your first expense!</p>
+                </div>
+                
+                <ExpenseCard 
+                    v-for="row in table.getRowModel().rows" 
+                    :key="row.id" 
+                    :expense="row.original"
+                    @edit="(expense) => document.dispatchEvent(new CustomEvent('editExpense', { detail: expense }))"
+                    @delete="(expense) => document.dispatchEvent(new CustomEvent('deleteExpense', { detail: expense }))"
+                />
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Data Table -->
+    <div class="rounded-md border hidden md:block">
       <Table>
         <TableHeader>
           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">

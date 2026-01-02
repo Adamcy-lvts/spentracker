@@ -3,6 +3,8 @@
 use App\Models\Expense;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\IncomeController;
+use App\Http\Controllers\BudgetController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -94,6 +96,10 @@ Route::get('dashboard', function () {
     });
     
     
+    // Get first expense date
+    $firstExpense = Expense::where('user_id', $userId)->orderBy('date', 'asc')->first();
+    $firstExpenseDate = $firstExpense ? \Carbon\Carbon::parse($firstExpense->date)->format('M d, Y') : null;
+
     return Inertia::render('Dashboard', [
         'recentExpenses' => $recentExpenses,
         'statistics' => [
@@ -102,7 +108,8 @@ Route::get('dashboard', function () {
             'lastMonth' => $lastMonth,
             'thisWeek' => $thisWeek,
             'monthlyTrend' => $monthlyData,
-            'categoryBreakdown' => $categoryBreakdown
+            'categoryBreakdown' => $categoryBreakdown,
+            'firstExpenseDate' => $firstExpenseDate
         ]
     ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
@@ -279,6 +286,18 @@ Route::delete('expenses/bulk', function () {
     
     return redirect()->route('expense')->with('message', "Successfully deleted {$deletedCount} expense(s)!");
 })->middleware(['auth', 'verified'])->name('expenses.bulk-delete');
+
+
+// Income Routes
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::resource('income', IncomeController::class)->except(['show', 'edit', 'create']);
+    Route::get('income/recurring', [IncomeController::class, 'recurring'])->name('income.recurring');
+    
+    // Budget Routes
+    Route::resource('budget', BudgetController::class)->except(['show', 'edit', 'create']);
+    Route::post('budget/alert/{alert}/dismiss', [BudgetController::class, 'dismissAlert'])
+        ->name('budget.dismissAlert');
+});
 
 // Admin routes
 Route::middleware(['auth', 'verified'])->prefix('admin')->group(function () {

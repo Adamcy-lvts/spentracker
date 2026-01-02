@@ -11,6 +11,7 @@ import InputError from '@/components/InputError.vue';
 import { LoaderCircle, Plus } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import EditExpenseDialog from '@/components/EditExpenseDialog.vue';
 import DeleteExpenseDialog from '@/components/DeleteExpenseDialog.vue';
 import BulkDeleteExpenseDialog from '@/components/BulkDeleteExpenseDialog.vue';
@@ -77,6 +78,7 @@ watch(selectedDate, (newDate) => {
 })
 
 // Dialog state
+const createDialogOpen = ref(false)
 const editDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const bulkDeleteDialogOpen = ref(false)
@@ -206,6 +208,7 @@ const submit = async () => {
             form.post(route('expense.store'), {
                 onSuccess: () => {
                     form.reset();
+                    createDialogOpen.value = false;
                     mainDisplayAmount.value = '';
                     selectedDate.value = today(getLocalTimeZone());
                     toast.success('Expense added successfully! 🎉');
@@ -236,6 +239,7 @@ const submit = async () => {
 
             // Reset form
             form.reset();
+            createDialogOpen.value = false;
             mainDisplayAmount.value = '';
             selectedDate.value = today(getLocalTimeZone());
             
@@ -337,18 +341,25 @@ const onMainAmountInput = (event: Event) => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
-            <h1 class="text-2xl font-bold">Expenses</h1>
+            <div class="flex items-center justify-between">
+                <h1 class="text-2xl font-bold">Expenses</h1>
+                <Button @click="createDialogOpen = true" class="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+                    <Plus class="w-4 h-4 mr-2" />
+                    Add Expense
+                </Button>
+            </div>
             
-            <!-- Add New Expense Form -->
-            <Card>
-                <CardHeader>
-                    <CardTitle class="flex items-center gap-2">
-                        <Plus class="w-5 h-5" />
-                        Add New Expense
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <form @submit.prevent="submit" class="grid gap-4 md:grid-cols-4">
+            <!-- Add New Expense Dialog -->
+            <Dialog :open="createDialogOpen" @update:open="createDialogOpen = $event">
+                <DialogContent class="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Add New Expense</DialogTitle>
+                        <DialogDescription>
+                            Create a new expense record. Click save when you're done.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <form @submit.prevent="submit" class="space-y-4 py-4">
                         <!-- Description Field -->
                         <div class="space-y-2">
                             <Label for="description">Description</Label>
@@ -408,20 +419,21 @@ const onMainAmountInput = (event: Event) => {
                             <InputError :message="form.errors.date" />
                         </div>
                         
-                        <!-- Submit Button -->
-                        <div class="md:col-span-4">
+                        <DialogFooter>
+                            <Button type="button" variant="outline" @click="createDialogOpen = false">
+                                Cancel
+                            </Button>
                             <Button 
                                 type="submit" 
                                 :disabled="form.processing"
-                                class="w-full md:w-auto"
                             >
                                 <LoaderCircle v-if="form.processing" class="w-4 h-4 mr-2 animate-spin" />
                                 {{ form.processing ? 'Adding...' : 'Add Expense' }}
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </form>
-                </CardContent>
-            </Card>
+                </DialogContent>
+            </Dialog>
             
             <!-- Expenses Data Table -->
             <Card>

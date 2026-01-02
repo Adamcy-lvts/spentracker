@@ -3,6 +3,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { usePage } from '@inertiajs/vue3';
 import { Toaster } from '@/components/ui/sonner';
 import OfflineIndicator from '@/components/OfflineIndicator.vue';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt.vue';
 import 'vue-sonner/style.css'; // Required for vue-sonner v2
 
 interface Props {
@@ -34,4 +35,7 @@ const handleSyncRequest = () => {
     
     <!-- Offline Status Indicator -->
     <OfflineIndicator @sync-requested="handleSyncRequest" />
+
+    <!-- Custom PWA Install Prompt -->
+    <PwaInstallPrompt />
 </template>

@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type User } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Tag, Users } from 'lucide-vue-next';
+import { Wallet, Folder, LayoutGrid, Tag, Target } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -13,7 +13,7 @@ const page = usePage();
 const user = page.props.auth.user as User;
 
 const mainNavItems = computed<NavItem[]>(() => {
-    const items: NavItem[] = [
+    return [
         {
             title: 'Dashboard',
             href: '/dashboard',
@@ -25,22 +25,21 @@ const mainNavItems = computed<NavItem[]>(() => {
             icon: Folder,
         },
         {
+            title: 'Income',
+            href: '/income',
+            icon: Wallet,
+        },
+        {
+            title: 'Budget',
+            href: '/budget',
+            icon: Target,
+        },
+        {
             title: 'Categories',
             href: '/categories',
             icon: Tag,
         },
     ];
-
-    // Add admin navigation if user is admin
-    if (user?.is_admin) {
-        items.push({
-            title: 'Admin Dashboard',
-            href: '/admin/users',
-            icon: Users,
-        });
-    }
-
-    return items;
 });
 
 const footerNavItems: NavItem[] = [];

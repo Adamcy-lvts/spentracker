@@ -65,6 +65,70 @@ const toggleAdminStatus = (user: User) => {
     }
   })
 }
+import { computed } from 'vue'
+import {
+  Chart as ChartJS,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  ArcElement
+} from 'chart.js'
+import { Bar, Pie } from 'vue-chartjs'
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
+
+// ... existing props ...
+const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            position: 'right' as const
+        }
+    }
+}
+
+const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: { display: false }
+    },
+    scales: {
+        y: {
+            beginAtZero: true,
+            ticks: { stepSize: 1 }
+        }
+    }
+}
+
+const userDistributionData = computed(() => ({
+    labels: ['Active (Last Month)', 'Inactive'],
+    datasets: [{
+        backgroundColor: ['#22c55e', '#94a3b8'], // Green-500, Slate-400
+        data: [
+            props.statistics.active_users_last_month,
+            props.statistics.inactive_users
+        ]
+    }]
+}))
+
+const activityChartData = computed(() => ({
+    labels: ['Active (Week)', 'Active (Month)', 'New (Month)'],
+    datasets: [{
+        label: 'Users',
+        backgroundColor: ['#3b82f6', '#8b5cf6', '#eab308'], // Blue, Violet, Yellow
+        data: [
+            props.statistics.active_users_last_week,
+            props.statistics.active_users_last_month,
+            props.statistics.new_users_this_month
+        ],
+        borderRadius: 4
+    }]
+}))
 </script>
 
 <template>
@@ -115,6 +179,35 @@ const toggleAdminStatus = (user: User) => {
           <CardContent>
             <div class="text-2xl font-bold">{{ statistics.new_users_this_month }}</div>
           </CardContent>
+        </Card>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- User Distribution Chart -->
+        <Card>
+            <CardHeader>
+                <CardTitle>User Status Distribution</CardTitle>
+                <CardDescription>Active vs Inactive Users</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div class="h-[300px] flex items-center justify-center">
+                    <Pie :data="userDistributionData" :options="pieChartOptions" />
+                </div>
+            </CardContent>
+        </Card>
+
+        <!-- Activity Overview Chart -->
+        <Card>
+            <CardHeader>
+                <CardTitle>Activity Overview</CardTitle>
+                <CardDescription>Recent user engagement metrics</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div class="h-[300px]">
+                    <Bar :data="activityChartData" :options="barChartOptions" />
+                </div>
+            </CardContent>
         </Card>
       </div>
 

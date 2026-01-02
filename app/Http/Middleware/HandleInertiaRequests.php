@@ -46,6 +46,9 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
             ],
+            'categories' => $request->user() 
+                ? \App\Models\Category::where('is_active', true)->orderBy('name')->get() 
+                : [],
             'ziggy' => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url(),
