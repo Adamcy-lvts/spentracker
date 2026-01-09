@@ -213,7 +213,7 @@ const scrollTo = (id: string) => {
                                 Data Storage & Hosting
                             </h2>
                             <p class="text-slate-500 border-l border-white/5 pl-8">User data is securely stored on cloud
-                                servers hosted by <strong class="text-white">DigitalOcean</strong>. All data
+                                server. All data
                                 transmission uses enterprise-grade
                                 HTTPS encryption.</p>
                         </section>
