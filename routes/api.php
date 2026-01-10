@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 */
 
 // Public authentication routes
-Route::prefix('v1')->group(function () {
+Route::prefix('v1')->name('api.')->group(function () {
     // Authentication routes (no auth required)
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
