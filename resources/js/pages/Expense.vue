@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import InputError from '@/components/InputError.vue';
-import { LoaderCircle, Plus } from 'lucide-vue-next';
+import { LoaderCircle, Plus, Upload } from 'lucide-vue-next';
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -49,6 +49,8 @@ const props = defineProps<{
   }>;
 }>();
 
+const page = usePage();
+
 const breadcrumbs: BreadcrumbItem[] = [
   {
     title: 'Expenses',
@@ -63,6 +65,13 @@ const form = useForm({
     date: new Date().toISOString().split('T')[0], // Today's date
     category_id: null,
 });
+
+const importForm = useForm<{
+  csv_file: File | null;
+}>({
+  csv_file: null,
+});
+const importFileInput = ref<HTMLInputElement | null>(null)
 
 // Date picker state
 const selectedDate = ref(today(getLocalTimeZone()))
@@ -79,6 +88,7 @@ watch(selectedDate, (newDate) => {
 
 // Dialog state
 const createDialogOpen = ref(false)
+const importDialogOpen = ref(false)
 const editDialogOpen = ref(false)
 const deleteDialogOpen = ref(false)
 const bulkDeleteDialogOpen = ref(false)
@@ -145,6 +155,30 @@ const allExpenses = computed(() => {
   return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 })
 
+const importSummary = computed(() => (page.props.flash as any)?.importSummary || null)
+
+watch(
+  importSummary,
+  (summary) => {
+    if (!summary) {
+      return
+    }
+
+    const imported = summary.imported ?? 0
+    const skipped = summary.skipped ?? 0
+    const errors = summary.errors ?? []
+    const message = skipped > 0
+      ? `Imported ${imported} expense(s), skipped ${skipped}.`
+      : `Imported ${imported} expense(s).`
+
+    if (skipped > 0 && errors.length > 0) {
+      toast.error(`${message} ${errors[0]}`)
+    } else {
+      toast.success(message)
+    }
+  },
+  { immediate: true }
+)
 
 // Event listeners for data table actions  
 onMounted(async () => {
@@ -251,6 +285,40 @@ const submit = async () => {
     }
 };
 
+const onImportFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  importForm.csv_file = target.files?.[0] || null
+  if (importForm.csv_file) {
+    importForm.clearErrors('csv_file')
+  }
+}
+
+const submitImport = () => {
+  if (!importForm.csv_file) {
+    importForm.setError('csv_file', 'Please select a CSV file.')
+    return
+  }
+
+  if (!isOnline.value) {
+    toast.error('Import requires an online connection.')
+    return
+  }
+
+  importForm.post(route('expense.import'), {
+    forceFormData: true,
+    onSuccess: () => {
+      importDialogOpen.value = false
+      importForm.reset()
+      if (importFileInput.value) {
+        importFileInput.value.value = ''
+      }
+    },
+    onError: () => {
+      toast.error('Import failed. Please check the file format.')
+    },
+  })
+}
+
 
 // Dialog-based editing functions
 const openEditDialog = (expense: any) => {
@@ -343,10 +411,16 @@ const onMainAmountInput = (event: Event) => {
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
             <div class="flex items-center justify-between">
                 <h1 class="text-2xl font-bold">Expenses</h1>
-                <Button @click="createDialogOpen = true" class="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
-                    <Plus class="w-4 h-4 mr-2" />
-                    Add Expense
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button variant="outline" @click="importDialogOpen = true">
+                        <Upload class="w-4 h-4 mr-2" />
+                        Import CSV
+                    </Button>
+                    <Button @click="createDialogOpen = true" class="bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+                        <Plus class="w-4 h-4 mr-2" />
+                        Add Expense
+                    </Button>
+                </div>
             </div>
             
             <!-- Add New Expense Dialog -->
@@ -429,6 +503,45 @@ const onMainAmountInput = (event: Event) => {
                             >
                                 <LoaderCircle v-if="form.processing" class="w-4 h-4 mr-2 animate-spin" />
                                 {{ form.processing ? 'Adding...' : 'Add Expense' }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <!-- Import Expenses Dialog -->
+            <Dialog :open="importDialogOpen" @update:open="importDialogOpen = $event">
+                <DialogContent class="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>Import Expenses</DialogTitle>
+                        <DialogDescription>
+                            Upload a CSV with columns: Date, Description, Amount, Category.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form @submit.prevent="submitImport" class="space-y-4 py-4">
+                        <div class="space-y-2">
+                            <Label for="csv-file">CSV File</Label>
+                            <Input
+                                id="csv-file"
+                                type="file"
+                                accept=".csv,text/csv"
+                                ref="importFileInput"
+                                @change="onImportFileChange"
+                            />
+                            <InputError :message="importForm.errors.csv_file" />
+                            <p class="text-sm text-muted-foreground">
+                                Date formats supported: YYYY-MM-DD, DD/MM/YYYY, MM/DD/YYYY.
+                            </p>
+                        </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" @click="importDialogOpen = false">
+                                Cancel
+                            </Button>
+                            <Button type="submit" :disabled="importForm.processing">
+                                <LoaderCircle v-if="importForm.processing" class="w-4 h-4 mr-2 animate-spin" />
+                                {{ importForm.processing ? 'Importing...' : 'Import' }}
                             </Button>
                         </DialogFooter>
                     </form>

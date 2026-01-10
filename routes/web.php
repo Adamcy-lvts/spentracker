@@ -1,7 +1,11 @@
 <?php
 
+use App\Models\Category;
 use App\Models\Expense;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\BudgetController;
@@ -210,6 +214,166 @@ Route::post('expense', function () {
     
     return redirect()->route('expense')->with('message', 'Expense added successfully!');
 })->middleware(['auth', 'verified'])->name('expense.store');
+
+Route::post('expense/import', function (Request $request) {
+    $validated = $request->validate([
+        'csv_file' => 'required|file|mimes:csv,txt|max:5120',
+    ]);
+
+    $file = $validated['csv_file'];
+    $handle = fopen($file->getRealPath(), 'r');
+
+    if ($handle === false) {
+        return back()->withErrors(['csv_file' => 'Unable to read the uploaded CSV file.']);
+    }
+
+    $firstRow = fgetcsv($handle);
+
+    if ($firstRow === false) {
+        fclose($handle);
+        return back()->withErrors(['csv_file' => 'The CSV file is empty.']);
+    }
+
+    $requiredHeaders = ['date', 'description', 'amount', 'category'];
+    $normalizedHeader = array_map(
+        fn ($header) => Str::of((string) $header)->replace("\xEF\xBB\xBF", '')->lower()->trim()->toString(),
+        $firstRow
+    );
+
+    $hasHeader = empty(array_diff($requiredHeaders, $normalizedHeader));
+    $headerIndexes = [
+        'date' => 0,
+        'description' => 1,
+        'amount' => 2,
+        'category' => 3,
+    ];
+
+    $pendingRows = [];
+    if ($hasHeader) {
+        foreach ($requiredHeaders as $header) {
+            $headerIndexes[$header] = array_search($header, $normalizedHeader, true);
+        }
+    } else {
+        $pendingRows[] = $firstRow;
+    }
+
+    $parseDate = function (string $value): ?string {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        foreach (['/', '-'] as $separator) {
+            if (str_contains($value, $separator)) {
+                $parts = array_map('trim', explode($separator, $value));
+                if (count($parts) === 3 && strlen($parts[2]) === 4) {
+                    $first = (int) $parts[0];
+                    $second = (int) $parts[1];
+                    $format = $second > 12 ? "m{$separator}d{$separator}Y" : "d{$separator}m{$separator}Y";
+                    $date = Carbon::createFromFormat($format, $value);
+                    $errors = Carbon::getLastErrors();
+                    if (
+                        $date &&
+                        ($errors['warning_count'] ?? 0) === 0 &&
+                        ($errors['error_count'] ?? 0) === 0
+                    ) {
+                        return $date->toDateString();
+                    }
+                }
+            }
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Exception $exception) {
+            return null;
+        }
+    };
+
+    $imported = 0;
+    $skipped = 0;
+    $errors = [];
+    $rowNumber = $hasHeader ? 2 : 1;
+
+    $processRow = function (array $row, int $currentRowNumber) use (
+        $headerIndexes,
+        $parseDate,
+        &$imported,
+        &$skipped,
+        &$errors
+    ) {
+        $dateRaw = trim((string) ($row[$headerIndexes['date']] ?? ''));
+        $description = trim((string) ($row[$headerIndexes['description']] ?? ''));
+        $amountRaw = trim((string) ($row[$headerIndexes['amount']] ?? ''));
+        $categoryRaw = trim((string) ($row[$headerIndexes['category']] ?? ''));
+
+        if ($dateRaw === '' && $description === '' && $amountRaw === '' && $categoryRaw === '') {
+            return;
+        }
+
+        $rowErrors = [];
+        $dateValue = $parseDate($dateRaw);
+        if ($dateValue === null) {
+            $rowErrors[] = 'invalid date';
+        }
+
+        $normalizedAmount = preg_replace('/[^\d.\-]/', '', $amountRaw);
+        if ($normalizedAmount === '' || !is_numeric($normalizedAmount) || (float) $normalizedAmount <= 0) {
+            $rowErrors[] = 'invalid amount';
+        }
+
+        if ($description === '') {
+            $rowErrors[] = 'missing description';
+        }
+
+        if (!empty($rowErrors)) {
+            $skipped++;
+            $errors[] = "Row {$currentRowNumber}: " . implode(', ', $rowErrors);
+            return;
+        }
+
+        $categoryId = null;
+        if ($categoryRaw !== '') {
+            $normalizedCategory = Str::lower($categoryRaw);
+            $category = Category::whereRaw('LOWER(name) = ?', [$normalizedCategory])->first();
+            if (!$category) {
+                $category = Category::create([
+                    'name' => $categoryRaw,
+                    'is_active' => true,
+                ]);
+            }
+            $categoryId = $category->id;
+        }
+
+        Expense::create([
+            'description' => $description,
+            'amount' => $normalizedAmount,
+            'date' => $dateValue,
+            'category_id' => $categoryId,
+            'user_id' => auth()->id(),
+        ]);
+
+        $imported++;
+    };
+
+    foreach ($pendingRows as $row) {
+        $processRow($row, $rowNumber);
+        $rowNumber++;
+    }
+
+    while (($row = fgetcsv($handle)) !== false) {
+        $processRow($row, $rowNumber);
+        $rowNumber++;
+    }
+
+    fclose($handle);
+
+    return redirect()->route('expense')->with('import_summary', [
+        'imported' => $imported,
+        'skipped' => $skipped,
+        'errors' => array_slice($errors, 0, 5),
+    ]);
+})->middleware(['auth', 'verified'])->name('expense.import');
 
 Route::put('expense/{expense}', function (Expense $expense) {
     // Check if the user owns this expense
